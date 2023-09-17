@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, create_engine
-from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 
 class PreBase:
