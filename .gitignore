@@ -153,6 +153,6 @@ dmypy.json
 cython_debug/
 
 # VsCode
-.vscode/
+.vscode
 
 sqlite.db
