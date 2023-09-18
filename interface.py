@@ -150,7 +150,7 @@ class Interface:
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
 
         count_frame = _create_frame('Введите количество на порцию (гр.)')
-        count_spinbox = ttk.Spinbox(count_frame, from_=1.0, to=500)
+        count_spinbox = ttk.Spinbox(count_frame, from_=1, to=500)
         count_spinbox.pack(anchor='center', fill='x')
         count_frame.pack(anchor='center', fill='x', padx=5, pady=5)
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Float
+from sqlalchemy import Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import column_property, relationship
 
 from .database import Base
@@ -13,7 +13,7 @@ class RawType(Base):
 class CountPerOne(Base):
     type = relationship('RawType', back_populates='count_per_one')
     type_id = Column(Integer, ForeignKey('rawtype.id'))
-    amount = Column(Integer, unique=False, nullable=False)
+    amount = Column(Float, unique=False, nullable=False)
 
 
 class RawAmount(Base):
