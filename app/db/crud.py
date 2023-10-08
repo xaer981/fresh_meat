@@ -49,6 +49,13 @@ def get_type_freezer(session: Session, name: str):
                            .where(RawAmount.type == type)).scalar()
 
 
+def get_type_fridge(session: Session, name: str):
+    type = session.query(RawType).filter_by(name=name).first()
+
+    return session.execute(select(RawAmount.fridge)
+                           .where(RawAmount.type == type)).scalar()
+
+
 def add_type(session: Session, data: dict[str, int]):
     name = data.get('name')
     count_per_one = data.get('count_per_one')
@@ -77,6 +84,35 @@ def add_type(session: Session, data: dict[str, int]):
     session.add(count_per_one_obj)
 
     session.commit()
+
+
+def update_type(session: Session, data: dict[str, int]):
+    name = data.get('name')
+    count_per_one = data.get('count_per_one')
+
+    if not name:
+
+        raise ValidationError('Поле названия обязательно для заполнения')
+
+    if not count_per_one:
+
+        raise ValidationError('Поле количества на порцию '
+                              'обязательно для заполнения!')
+
+    try:
+        float(count_per_one)
+
+    except ValueError:
+
+        raise ValidationError('Это не число')
+
+    type = session.query(RawType).filter_by(name=name).first()
+    object = session.query(CountPerOne).filter_by(type_id=type.id).first()
+
+    object.amount = int(count_per_one)
+    session.add(object)
+    session.commit()
+    session.refresh(object)
 
 
 def add_amount(session: Session, data: dict[str, int]):
@@ -135,5 +171,33 @@ def freezer_to_fridge(session: Session, data: dict[str, int]):
     if raw_amount := session.query(RawAmount).filter_by(type=type).first():
         raw_amount.freezer -= amount
         raw_amount.fridge += amount
+
+        session.commit()
+
+
+def fridge_to_freezer(session: Session, data: dict[str, int]):
+    name = data.get('name')
+    amount = data.get('amount')
+
+    if not name:
+
+        raise ValidationError('Поле названия обязательно для заполнения!')
+
+    if not amount:
+
+        raise ValidationError('Поле количества обязательно для заполнения!')
+
+    try:
+        amount = float(amount)
+
+    except ValueError:
+
+        raise ValidationError('Это не число')
+
+    type = session.query(RawType).filter_by(name=name).first()
+
+    if raw_amount := session.query(RawAmount).filter_by(type=type).first():
+        raw_amount.fridge -= amount
+        raw_amount.freezer += amount
 
         session.commit()
