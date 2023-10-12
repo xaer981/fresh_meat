@@ -49,3 +49,14 @@ class ScrollableFrame(ttk.Frame):
         canvas.bind('<Enter>', _bound_to_mousewheel)
         canvas.bind_all('<MouseWheel>', _on_mousewheel)
         canvas.bind('<Leave>', _unbound_to_mousewheel)
+
+
+def create_frame(master: ttk.Frame, label_text: str) -> ttk.Frame:
+    frame = ttk.Frame(master=master,
+                      borderwidth=1,
+                      relief='solid',
+                      padding=(8, 10))
+    label = ttk.Label(frame, text=label_text)
+    label.pack(anchor='center')
+
+    return frame

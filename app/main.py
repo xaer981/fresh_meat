@@ -1,9 +1,9 @@
 from operator import itemgetter
-from tkinter import Menu, Tk, ttk
+from tkinter import Button, Menu, Tk, messagebox, ttk
 from tkinter.messagebox import showerror
 
-from core.utils import ScrollableFrame
-from db.crud import (add_amount, add_type, freezer_to_fridge,
+from core.utils import create_frame, ScrollableFrame
+from db.crud import (add_amount, add_report, add_type, freezer_to_fridge,
                      fridge_to_freezer, get_freezer, get_fridge, get_total,
                      get_type_freezer, get_type_fridge, get_types,
                      get_types_names, update_type)
@@ -82,7 +82,8 @@ class Interface:
                    columns: tuple[str],
                    parent: callable) -> None:
         all_cols = {
-            'amount': 'Количество (кг.)',
+            'amount': 'Количество (гр.)',
+            'amount_kg': 'Количество (кг.)',
             'count_per_one': 'Количество на одну порцию (гр.)',
             'name': 'Название'
         }
@@ -91,34 +92,43 @@ class Interface:
         tree = ttk.Treeview(parent,
                             columns=columns,
                             show='headings')
-        tree.heading(0, text=labels[0], anchor='w')
-        tree.heading(1, text=labels[1], anchor='w')
+
+        # Не работает!
+        for i in range(len(labels)):
+            tree.heading(i, text=labels[i], anchor='w')
 
         tree.pack(fill='both', expand=True)
 
         for row in data:
-            tree.insert('', 'end', values=(row[0], row[1]))
+            if len(labels) > 2:
+                values = (row[0], row[1], row[1] / 1000)
+            if len(labels) == 1:
+                values = (row[0],)
+            else:
+                values = (row[0], row[1])
+
+            tree.insert('', 'end', values=values)
 
         return tree
 
     def _list_types(self) -> None:
         data = get_types(self.session)
-        columns = ('name', 'count_per_one')
+        columns = ('name',)
         self.types_tree = self._list_data(data, columns, self.types)
 
     def _list_total(self) -> None:
         data = get_total(self.session)
-        columns = ('name', 'amount')
+        columns = ('name', 'amount', 'amount_kg')
         self.total_tree = self._list_data(data, columns, self.total)
 
     def _list_fridge(self) -> None:
         data = get_fridge(self.session)
-        columns = ('name', 'amount')
+        columns = ('name', 'amount', 'amount_kg')
         self.fridge_tree = self._list_data(data, columns, self.fridge)
 
     def _list_freezer(self) -> None:
         data = get_freezer(self.session)
-        columns = ('name', 'amount')
+        columns = ('name', 'amount', 'amount_kg')
         self.freezer_tree = self._list_data(data, columns, self.freezer)
 
     def _list_all(self) -> None:
@@ -133,24 +143,11 @@ class Interface:
         adding_window.geometry('600x400')
         adding_window.minsize(600, 400)
 
-        @staticmethod
-        def _create_frame(label_text):
-            frame = ttk.Frame(master=adding_window,
-                              borderwidth=1,
-                              relief='solid',
-                              padding=(8, 10))
-            label = ttk.Label(frame, text=label_text)
-            label.pack(anchor='center')
-
-            return frame
-
         def send_data_and_update():
             type_name = type_entry.get()
-            count_per_one = count_spinbox.get()
 
             try:
-                add_type(self.session, {'name': type_name,
-                                        'count_per_one': count_per_one})
+                add_type(self.session, type_name)
                 self.types_tree.destroy()
                 self._list_types()
 
@@ -160,12 +157,50 @@ class Interface:
             finally:
                 adding_window.destroy()
 
-        type_frame = _create_frame('Введите название вида')
+        type_frame = create_frame(adding_window, 'Введите название вида')
         type_entry = ttk.Entry(type_frame)
         type_entry.pack(anchor='center', fill='x')
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
 
-        count_frame = _create_frame('Введите количество на порцию (гр.)')
+        add_type_button = ttk.Button(adding_window,
+                                     text='Добавить',
+                                     command=send_data_and_update)
+        add_type_button.pack(anchor='center')
+        adding_window.focus_force()
+
+    def _open_dish_adding_window(self):
+        adding_window = Tk()
+        adding_window.title('Добавить вид мяса')
+        adding_window.geometry('600x400')
+        adding_window.minsize(600, 400)
+
+        def send_data_and_update():
+            type_name = type_entry.get()
+            count_per_one = count_spinbox.get()
+            dish_name = dish_entry.get()
+
+            try:
+                add_type(self.session, {'name': type_name,
+                                        'count_per_one': count_per_one,
+                                        'dish_name': dish_name})
+                self.types_tree.destroy()
+                self._list_types()
+
+            except ValidationError as error:
+                showerror('Ошибка!', error.message)
+
+            finally:
+                adding_window.destroy()
+
+        type_frame = create_frame(adding_window, 'Введите название вида')
+        type_entry = ttk.Entry(type_frame)
+        dish_entry = ttk.Entry(type_frame)
+        type_entry.pack(anchor='center', fill='x')
+        dish_entry.pack(anchor='center', fill='x')
+        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+
+        count_frame = create_frame(adding_window,
+                                   'Введите количество на порцию (гр.)')
         count_spinbox = ttk.Spinbox(count_frame, from_=1, to=500)
         count_spinbox.pack(anchor='center', fill='x')
         count_frame.pack(anchor='center', fill='x', padx=5, pady=5)
@@ -174,23 +209,13 @@ class Interface:
                                      text='Добавить',
                                      command=send_data_and_update)
         add_type_button.pack(anchor='center')
+        adding_window.focus_force()
 
     def _open_type_change_window(self):
         adding_window = Tk()
         adding_window.title('Изменить существующий вид мяса')
         adding_window.geometry('600x400')
         adding_window.minsize(600, 400)
-
-        @staticmethod
-        def _create_frame(label_text):
-            frame = ttk.Frame(master=adding_window,
-                              borderwidth=1,
-                              relief='solid',
-                              padding=(8, 10))
-            label = ttk.Label(frame, text=label_text)
-            label.pack(anchor='center')
-
-            return frame
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -210,12 +235,13 @@ class Interface:
 
         def _create_amount_frame(event):
             nonlocal amount_spinbox
-            amount_frame = _create_frame('Введите количество '
-                                         'на порцию (гр.)')
+
+            amount_frame = create_frame(adding_window,
+                                        ('Введите количество '
+                                         'на порцию (гр.)'))
             amount_spinbox = ttk.Spinbox(amount_frame,
-                                         from_=0.5,
-                                         to=500,
-                                         increment=0.5)
+                                         from_=1,
+                                         to=500)
             amount_spinbox.pack(anchor='center', fill='x')
             amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
 
@@ -226,30 +252,21 @@ class Interface:
 
         amount_spinbox = None
 
-        type_frame = _create_frame('Выберите изменяемый вид мяса')
+        type_frame = create_frame(adding_window,
+                                  'Выберите изменяемый вид мяса')
         type_combobox = ttk.Combobox(type_frame,
                                      values=get_types_names(self.session),
                                      state='readonly')
         type_combobox.pack(anchor='center', fill='x')
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
         type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+        adding_window.focus_force()
 
     def _open_amount_adding_window(self):
         adding_window = Tk()
         adding_window.title('Добавить мясо в базу')
         adding_window.geometry('600x400')
         adding_window.minsize(600, 400)
-
-        @staticmethod
-        def _create_frame(label_text):
-            frame = ttk.Frame(master=adding_window,
-                              borderwidth=1,
-                              relief='solid',
-                              padding=(8, 10))
-            label = ttk.Label(frame, text=label_text)
-            label.pack(anchor='center')
-
-            return frame
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -279,18 +296,19 @@ class Interface:
 
             return True
 
-        type_frame = _create_frame('Выберите добавляемый вид мяса')
+        type_frame = create_frame(adding_window,
+                                  'Выберите добавляемый вид мяса')
         type_combobox = ttk.Combobox(type_frame,
                                      values=get_types_names(self.session),
                                      state='readonly')
         type_combobox.pack(anchor='center', fill='x')
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
 
-        amount_frame = _create_frame('Введите количество мяса (кг.)')
+        amount_frame = create_frame(adding_window,
+                                    'Введите количество мяса (гр.)')
         amount_spinbox = ttk.Spinbox(amount_frame,
-                                     from_=0.5,
-                                     to=500,
-                                     increment=0.5,
+                                     from_=1,
+                                     to=999999,
                                      validate='key',
                                      validatecommand=(
                                          amount_frame.register(_is_num), '%P'))
@@ -301,23 +319,13 @@ class Interface:
                                        text='Добавить',
                                        command=send_data_and_update)
         add_amount_button.pack(anchor='center')
+        adding_window.focus_force()
 
     def _open_freezer_to_fridge_window(self):
         adding_window = Tk()
         adding_window.title('Перенести в холодильник')
         adding_window.geometry('600x400')
         adding_window.minsize(600, 400)
-
-        @staticmethod
-        def _create_frame(label_text):
-            frame = ttk.Frame(master=adding_window,
-                              borderwidth=1,
-                              relief='solid',
-                              padding=(8, 10))
-            label = ttk.Label(frame, text=label_text)
-            label.pack(anchor='center')
-
-            return frame
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -341,7 +349,7 @@ class Interface:
 
         def _is_num_and_less_than_now(val):
             try:
-                val = float(val)
+                val = int(val)
 
             except ValueError:
 
@@ -355,16 +363,26 @@ class Interface:
 
         def _create_amount_frame(event):
             nonlocal amount_spinbox
+            nonlocal amount_frame
+            nonlocal to_fridge_button
+
+            if amount_frame:
+                amount_frame.destroy()
+
+            if to_fridge_button:
+                to_fridge_button.destroy()
+
             type_freezer = get_type_freezer(self.session, type_combobox.get())
-            amount_frame = _create_frame('Введите количество '
-                                         'для переноса (кг.)')
+            amount_frame = create_frame(adding_window,
+                                        ('Введите количество '
+                                         'для переноса (гр.)'))
             amount_label = ttk.Label(amount_frame,
                                      text=(f'Сейчас в морозильнике '
-                                           f'{type_freezer} кг.'))
+                                           f'{type_freezer} гр.'))
             amount_spinbox = ttk.Spinbox(amount_frame,
-                                         from_=0.5,
+                                         from_=1,
                                          to=type_freezer,
-                                         increment=0.5,
+                                         increment=1,
                                          validate='key',
                                          validatecommand=(
                                             amount_frame.register(
@@ -379,31 +397,25 @@ class Interface:
                                           command=send_data_and_update)
             to_fridge_button.pack(anchor='center')
 
+        amount_frame = None
         amount_spinbox = None
-        type_frame = _create_frame('Выберите переносимый вид мяса')
+        to_fridge_button = None
+
+        type_frame = create_frame(adding_window,
+                                  'Выберите переносимый вид мяса')
         type_combobox = ttk.Combobox(type_frame,
                                      values=get_types_names(self.session),
                                      state='readonly')
         type_combobox.pack(anchor='center', fill='x')
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
         type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+        adding_window.focus_force()
 
     def _open_fridge_to_freezer_window(self):
         adding_window = Tk()
         adding_window.title('Перенести в морозильник')
         adding_window.geometry('600x400')
         adding_window.minsize(600, 400)
-
-        @staticmethod
-        def _create_frame(label_text):
-            frame = ttk.Frame(master=adding_window,
-                              borderwidth=1,
-                              relief='solid',
-                              padding=(8, 10))
-            label = ttk.Label(frame, text=label_text)
-            label.pack(anchor='center')
-
-            return frame
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -427,7 +439,7 @@ class Interface:
 
         def _is_num_and_less_than_now(val):
             try:
-                val = float(val)
+                val = int(val)
 
             except ValueError:
 
@@ -441,16 +453,26 @@ class Interface:
 
         def _create_amount_frame(event):
             nonlocal amount_spinbox
+            nonlocal amount_frame
+            nonlocal to_freezer_button
+
+            if amount_frame:
+                amount_frame.destroy()
+
+            if to_freezer_button:
+                to_freezer_button.destroy()
+
             type_fridge = get_type_fridge(self.session, type_combobox.get())
-            amount_frame = _create_frame('Введите количество '
-                                         'для переноса (кг.)')
+            amount_frame = create_frame(adding_window,
+                                        ('Введите количество '
+                                         'для переноса (гр.)'))
             amount_label = ttk.Label(amount_frame,
                                      text=(f'Сейчас в холодильнике '
-                                           f'{type_fridge} кг.'))
+                                           f'{type_fridge} гр.'))
             amount_spinbox = ttk.Spinbox(amount_frame,
-                                         from_=0.5,
+                                         from_=1,
                                          to=type_fridge,
-                                         increment=0.5,
+                                         increment=1,
                                          validate='key',
                                          validatecommand=(
                                             amount_frame.register(
@@ -466,13 +488,18 @@ class Interface:
             to_freezer_button.pack(anchor='center')
 
         amount_spinbox = None
-        type_frame = _create_frame('Выберите переносимый вид мяса')
+        amount_frame = None
+        to_freezer_button = None
+
+        type_frame = create_frame(adding_window,
+                                  'Выберите переносимый вид мяса')
         type_combobox = ttk.Combobox(type_frame,
                                      values=get_types_names(self.session),
                                      state='readonly')
         type_combobox.pack(anchor='center', fill='x')
         type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
         type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+        adding_window.focus_force()
 
     def _open_report_window(self):
         adding_window = Tk()
@@ -481,18 +508,83 @@ class Interface:
         adding_window.minsize(600, 400)
 
         report_frame = ScrollableFrame(adding_window)
-        for i in range(20):
+        row = 2
+
+        results = {}
+
+        def _add_combobox_and_spinbox():
+            nonlocal row
             type_combobox = ttk.Combobox(report_frame.interior,
-                                         values=i,
+                                         values=get_types_names(self.session),
                                          state='readonly')
-            type_combobox.grid(column=0, row=i, pady=5, padx=5)
-            type_amount = ttk.Spinbox(report_frame.interior,
-                                      from_=1,
-                                      to=500,
-                                      increment=1)
-            type_amount.grid(column=1, row=i, pady=5, padx=5)
+            amount_spinbox = ttk.Spinbox(report_frame.interior,
+                                         from_=1,
+                                         to=500,
+                                         increment=1)
+            type_combobox.grid(column=0, row=row, pady=5, padx=5)
+            amount_spinbox.grid(column=1, row=row, pady=5, padx=5)
+
+            row += 1
+
+            results[type_combobox] = amount_spinbox
+
+        def click_send_button():
+            result = messagebox.askyesno(
+                title='Внести отчёт?',
+                message='Уверены, что хотите внести информацию из отчёта?',
+                icon=messagebox.QUESTION,
+                default=messagebox.NO)
+            if result:
+                send_data_and_update()
+            else:
+                adding_window.tkraise()
+                adding_window.focus_force()
+
+        def send_data_and_update():
+            try:
+                used_amount = add_report(self.session,
+                                         {key.get(): value.get()
+                                          for key, value in results.items()
+                                          if key.get()})
+                messagebox.showinfo('Удачно!', f'{used_amount = }')
+                self.freezer_tree.destroy()
+                self.fridge_tree.destroy()
+                self.total_tree.destroy()
+                self._list_freezer()
+                self._list_fridge()
+                self._list_total()
+
+            except ValidationError as error:
+                showerror('Ошибка!', error.message)
+
+            finally:
+                adding_window.destroy()
+
+        ttk.Label(report_frame.interior, text='Вид мяса').grid(column=0,
+                                                               row=0,
+                                                               pady=5,
+                                                               padx=5)
+        ttk.Label(report_frame.interior,
+                  text='Количество порций').grid(column=1,
+                                                 row=0,
+                                                 pady=5,
+                                                 padx=5)
+        _add_combobox_and_spinbox()
+
+        Button(adding_window,
+               text='Отправить отчёт',
+               command=click_send_button,
+               bg='red',
+               fg='white').pack(anchor='center')
+
+        Button(adding_window,
+               text='Добавить ещё строку',
+               command=_add_combobox_and_spinbox,
+               bg='green',
+               fg='white').pack(anchor='center')
 
         report_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+        adding_window.focus_force()
 
 
 if __name__ == '__main__':

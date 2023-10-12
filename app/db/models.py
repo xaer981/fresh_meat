@@ -1,7 +1,5 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import (column_property, mapped_column, relationship,
-                            validates)
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.orm import column_property, relationship, validates
 
 from .database import Base, SessionLocal
 from .exceptions import ValidationError
@@ -11,7 +9,7 @@ session = SessionLocal()
 
 class RawType(Base):
     name = Column(String(length=200), unique=True, nullable=False)
-    count_per_one = relationship('CountPerOne', back_populates='type')
+    dishes = relationship('Dish', back_populates='type')
     amount = relationship('RawAmount', back_populates='type')
 
     @validates('name', include_backrefs=False)
@@ -31,21 +29,13 @@ class RawType(Base):
         return name
 
 
-class CountPerOne(Base):
-    type = relationship('RawType', back_populates='count_per_one')
+class Dish(Base):
+    type = relationship('RawType', back_populates='dishes')
     type_id = Column(Integer, ForeignKey('rawtype.id'))
-    _amount = mapped_column('amount', Float, unique=False, nullable=False)
+    amount = Column(Integer, unique=False, nullable=False)
+    name = Column(String(length=200), unique=True, nullable=False)
 
-    @hybrid_property
-    def amount(self):
-
-        return self._amount * 1000
-
-    @amount.setter
-    def amount(self, amount):
-        self._amount = amount / 1000
-
-    @validates('_amount')
+    @validates('amount')
     def validate_amount(self, key, amount):
         if not amount:
 
@@ -69,8 +59,8 @@ class CountPerOne(Base):
 class RawAmount(Base):
     type = relationship('RawType', back_populates='amount')
     type_id = Column(Integer, ForeignKey('rawtype.id'))
-    fridge = Column(Float, unique=False, nullable=False, default=0)
-    freezer = Column(Float, unique=False, nullable=False)
+    fridge = Column(Integer, unique=False, nullable=False, default=0)
+    freezer = Column(Integer, unique=False, nullable=False, default=0)
     total = column_property(fridge + freezer)
 
     @validates('freezer')

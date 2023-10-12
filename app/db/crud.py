@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .exceptions import ValidationError
-from .models import CountPerOne, RawAmount, RawType
+from .models import Dish, RawAmount, RawType
 
 
 def get_total(session: Session):
@@ -31,9 +31,14 @@ def get_freezer(session: Session):
 
 def get_types(session: Session):
 
-    return (session.query(RawType.name, CountPerOne.amount)
+    return session.query(RawType.name).all()
+
+
+def get_dishes(session: Session):
+
+    return (session.query(RawType.name, Dish.amount)
             .select_from(RawType)
-            .join(RawType.count_per_one)
+            .join(RawType.dishes)
             .all())
 
 
@@ -56,9 +61,21 @@ def get_type_fridge(session: Session, name: str):
                            .where(RawAmount.type == type)).scalar()
 
 
-def add_type(session: Session, data: dict[str, int]):
+def add_type(session: Session, name: str):
+    if not name:
+
+        raise ValidationError('Поле названия обязательно для заполнения!')
+
+    new_type = RawType(name=name)
+
+    session.add(new_type)
+    session.commit()
+
+
+def add_dish(session: Session, data: dict[str, int]):
     name = data.get('name')
     count_per_one = data.get('count_per_one')
+    # dish_name = data.get('dish_name')
 
     if not name:
 
@@ -79,8 +96,8 @@ def add_type(session: Session, data: dict[str, int]):
     new_type = RawType(name=name)
     session.add(new_type)
 
-    count_per_one_obj = CountPerOne(type=new_type,
-                                    amount=int(count_per_one))
+    count_per_one_obj = Dish(type=new_type,
+                             amount=int(count_per_one))
     session.add(count_per_one_obj)
 
     session.commit()
@@ -107,7 +124,7 @@ def update_type(session: Session, data: dict[str, int]):
         raise ValidationError('Это не число')
 
     type = session.query(RawType).filter_by(name=name).first()
-    object = session.query(CountPerOne).filter_by(type_id=type.id).first()
+    object = session.query(Dish).filter_by(type_id=type.id).first()
 
     object.amount = int(count_per_one)
     session.add(object)
@@ -128,7 +145,7 @@ def add_amount(session: Session, data: dict[str, int]):
         raise ValidationError('Поле количества обязательно для заполнения!')
 
     try:
-        amount = float(amount)
+        float(amount)
 
     except ValueError:
 
@@ -137,14 +154,62 @@ def add_amount(session: Session, data: dict[str, int]):
     type = session.query(RawType).filter_by(name=name).first()
 
     if raw_amount := session.query(RawAmount).filter_by(type=type).first():
-        raw_amount.freezer += amount
+        raw_amount.freezer += int(amount)
 
     else:
         raw_amount = RawAmount(type=type,
-                               freezer=amount)
+                               freezer=int(amount))
         session.add(raw_amount)
 
     session.commit()
+
+
+def add_report(session: Session, data: dict[str, int]):
+    results = {}
+
+    for name, amount in data.items():
+        if not name:
+
+            raise ValidationError('Поле названия обязательно для заполнения!')
+
+        if not amount:
+
+            raise ValidationError(
+                'Поле количества обязательно для заполнения!')
+
+        try:
+            float(amount)
+
+        except ValueError:
+
+            raise ValidationError('Это не число')
+
+        db_type = session.query(RawType).filter_by(name=name).first()
+        count_per_one = (session.query(Dish)
+                         .filter_by(type=db_type).first())
+
+        if db_type is None:
+
+            raise ValidationError(f'Вида с названием {name} не существует')
+
+        if raw_amount := (session.query(RawAmount)
+                          .filter_by(type=db_type).first()):
+            used_amount = int(amount) * count_per_one.amount
+            raw_amount.fridge -= used_amount
+
+            if raw_amount.fridge < 0:
+
+                session.rollback()
+                raise ValidationError(f'При таком количестве порций '
+                                      f'({amount}) количество мяса вида '
+                                      f'"{db_type.name}" станет '
+                                      f'отрицательным!')
+
+            results[db_type.name] = used_amount
+
+    session.commit()
+
+    return results
 
 
 def freezer_to_fridge(session: Session, data: dict[str, int]):
@@ -160,7 +225,7 @@ def freezer_to_fridge(session: Session, data: dict[str, int]):
         raise ValidationError('Поле количества обязательно для заполнения!')
 
     try:
-        amount = float(amount)
+        float(amount)
 
     except ValueError:
 
@@ -169,8 +234,8 @@ def freezer_to_fridge(session: Session, data: dict[str, int]):
     type = session.query(RawType).filter_by(name=name).first()
 
     if raw_amount := session.query(RawAmount).filter_by(type=type).first():
-        raw_amount.freezer -= amount
-        raw_amount.fridge += amount
+        raw_amount.freezer -= int(amount)
+        raw_amount.fridge += int(amount)
 
         session.commit()
 
@@ -188,7 +253,7 @@ def fridge_to_freezer(session: Session, data: dict[str, int]):
         raise ValidationError('Поле количества обязательно для заполнения!')
 
     try:
-        amount = float(amount)
+        float(amount)
 
     except ValueError:
 
@@ -197,7 +262,7 @@ def fridge_to_freezer(session: Session, data: dict[str, int]):
     type = session.query(RawType).filter_by(name=name).first()
 
     if raw_amount := session.query(RawAmount).filter_by(type=type).first():
-        raw_amount.fridge -= amount
-        raw_amount.freezer += amount
+        raw_amount.fridge -= int(amount)
+        raw_amount.freezer += int(amount)
 
         session.commit()
