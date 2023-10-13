@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -36,15 +38,23 @@ def get_types(session: Session):
 
 def get_dishes(session: Session):
 
-    return (session.query(RawType.name, Dish.amount)
+    return (session.query(Dish.name, RawType.name, Dish.amount)
             .select_from(RawType)
             .join(RawType.dishes)
+            .order_by(Dish.name)
             .all())
 
 
 def get_types_names(session: Session):
 
-    return session.execute(select(RawType.name)).scalars().all()
+    return session.execute(select(RawType.name)
+                           .order_by(RawType.name)).scalars().all()
+
+
+def get_dishes_names(session: Session):
+
+    return session.execute(select(Dish.name)
+                           .order_by(Dish.name)).scalars().all()
 
 
 def get_type_freezer(session: Session, name: str):
@@ -72,18 +82,35 @@ def add_type(session: Session, name: str):
     session.commit()
 
 
-def add_dish(session: Session, data: dict[str, int]):
-    name = data.get('name')
-    count_per_one = data.get('count_per_one')
-    # dish_name = data.get('dish_name')
-
+def delete_type(session: Session, name: str):
     if not name:
 
-        raise ValidationError('Поле названия обязательно для заполнения!')
+        raise ValidationError('Нельзя удалить то, чего нет')
+
+    db_type = session.query(RawType).filter_by(name=name).first()
+
+    session.delete(db_type)
+    session.commit()
+
+
+def add_dish(session: Session, data: dict[str, int]):
+    type_name = data.get('name')
+    count_per_one = data.get('count_per_one')
+    dish_name = data.get('dish_name')
+
+    if not type_name:
+
+        raise ValidationError('Поле названия сырья '
+                              'обязательно для заполнения!')
 
     if not count_per_one:
 
         raise ValidationError('Поле количества на порцию '
+                              'обязательно для заполнения!')
+
+    if not dish_name:
+
+        raise ValidationError('Поле названия блюда '
                               'обязательно для заполнения!')
 
     try:
@@ -93,17 +120,17 @@ def add_dish(session: Session, data: dict[str, int]):
 
         raise ValidationError('Это не число')
 
-    new_type = RawType(name=name)
-    session.add(new_type)
+    db_type = session.query(RawType).filter_by(name=type_name).first()
 
-    count_per_one_obj = Dish(type=new_type,
-                             amount=int(count_per_one))
-    session.add(count_per_one_obj)
+    new_dish = Dish(type=db_type,
+                    amount=int(count_per_one),
+                    name=dish_name)
+    session.add(new_dish)
 
     session.commit()
 
 
-def update_type(session: Session, data: dict[str, int]):
+def update_dish(session: Session, data: dict[str, int]):
     name = data.get('name')
     count_per_one = data.get('count_per_one')
 
@@ -123,13 +150,23 @@ def update_type(session: Session, data: dict[str, int]):
 
         raise ValidationError('Это не число')
 
-    type = session.query(RawType).filter_by(name=name).first()
-    object = session.query(Dish).filter_by(type_id=type.id).first()
+    dish = session.query(Dish).filter_by(name=name).first()
 
-    object.amount = int(count_per_one)
-    session.add(object)
+    dish.amount = int(count_per_one)
+    session.add(dish)
     session.commit()
-    session.refresh(object)
+    session.refresh(dish)
+
+
+def delete_dish(session: Session, name: str):
+    if not name:
+
+        raise ValidationError('Нельзя удалить то, чего нет')
+
+    db_dish = session.query(Dish).filter_by(name=name).first()
+
+    session.delete(db_dish)
+    session.commit()
 
 
 def add_amount(session: Session, data: dict[str, int]):
@@ -151,13 +188,13 @@ def add_amount(session: Session, data: dict[str, int]):
 
         raise ValidationError('Это не число')
 
-    type = session.query(RawType).filter_by(name=name).first()
+    db_type = session.query(RawType).filter_by(name=name).first()
 
-    if raw_amount := session.query(RawAmount).filter_by(type=type).first():
+    if raw_amount := session.query(RawAmount).filter_by(type=db_type).first():
         raw_amount.freezer += int(amount)
 
     else:
-        raw_amount = RawAmount(type=type,
+        raw_amount = RawAmount(type=db_type,
                                freezer=int(amount))
         session.add(raw_amount)
 
@@ -165,7 +202,7 @@ def add_amount(session: Session, data: dict[str, int]):
 
 
 def add_report(session: Session, data: dict[str, int]):
-    results = {}
+    results = defaultdict(int)
 
     for name, amount in data.items():
         if not name:
@@ -184,17 +221,12 @@ def add_report(session: Session, data: dict[str, int]):
 
             raise ValidationError('Это не число')
 
-        db_type = session.query(RawType).filter_by(name=name).first()
-        count_per_one = (session.query(Dish)
-                         .filter_by(type=db_type).first())
-
-        if db_type is None:
-
-            raise ValidationError(f'Вида с названием {name} не существует')
+        dish = (session.query(Dish)
+                .filter_by(name=name).first())
 
         if raw_amount := (session.query(RawAmount)
-                          .filter_by(type=db_type).first()):
-            used_amount = int(amount) * count_per_one.amount
+                          .filter_by(type=dish.type).first()):
+            used_amount = int(amount) * dish.amount
             raw_amount.fridge -= used_amount
 
             if raw_amount.fridge < 0:
@@ -202,10 +234,10 @@ def add_report(session: Session, data: dict[str, int]):
                 session.rollback()
                 raise ValidationError(f'При таком количестве порций '
                                       f'({amount}) количество мяса вида '
-                                      f'"{db_type.name}" станет '
+                                      f'"{raw_amount.type.name}" станет '
                                       f'отрицательным!')
 
-            results[db_type.name] = used_amount
+            results[raw_amount.type.name] += used_amount
 
     session.commit()
 

@@ -9,7 +9,7 @@ session = SessionLocal()
 
 class RawType(Base):
     name = Column(String(length=200), unique=True, nullable=False)
-    dishes = relationship('Dish', back_populates='type')
+    dishes = relationship('Dish', back_populates='type', cascade='all, delete')
     amount = relationship('RawAmount', back_populates='type')
 
     @validates('name', include_backrefs=False)
