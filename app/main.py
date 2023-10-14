@@ -2,14 +2,15 @@ from operator import itemgetter
 from tkinter import Button, Menu, Tk, messagebox, ttk
 from tkinter.messagebox import showerror
 
-from core.utils import ScrollableFrame, create_frame
-from db.crud import (add_amount, add_dish, add_report, add_type, delete_dish,
-                     delete_type, freezer_to_fridge, fridge_to_freezer,
-                     get_dishes, get_dishes_names, get_freezer, get_fridge,
-                     get_total, get_type_freezer, get_type_fridge, get_types,
-                     get_types_names, update_dish)
-from db.database import SessionLocal, create_db
-from db.exceptions import ValidationError
+from app.core.utils import ScrollableFrame, create_frame
+from app.db.crud import (add_amount, add_dish, add_report, add_type,
+                         delete_dish, delete_type, freezer_to_fridge,
+                         fridge_to_freezer, get_dishes, get_dishes_names,
+                         get_freezer, get_fridge, get_total, get_type_freezer,
+                         get_type_fridge, get_types, get_types_names,
+                         update_dish)
+from app.db.database import SessionLocal, create_db
+from app.db.exceptions import ValidationError
 
 
 class Interface:
@@ -19,7 +20,7 @@ class Interface:
 
         # root
         self.root = root
-        self.root.title('База мяса')
+        self.root.title('Мясосчёт v. 0.1')
         self.root.minsize(900, 600)
         self.root.geometry('900x600')
         self.root.protocol('WM_DELETE_WINDOW', self.shutdown)
@@ -43,8 +44,9 @@ class Interface:
                                   command=self._open_type_adding_window)
         settings_menu.add_command(label='Добавить вид блюда',
                                   command=self._open_dish_adding_window)
-        settings_menu.add_command(label='Изменить существующий вид мяса',
-                                  command=self._open_type_change_window)
+        settings_menu.add_command(label='Изменить существующий вид блюда',
+                                  command=self._open_dish_change_window)
+        settings_menu.add_separator()
         settings_menu.add_command(label='Удалить существующий вид блюда',
                                   command=self._open_delete_dish_window)
         settings_menu.add_command(label='Удалить существующий вид мяса',
@@ -127,26 +129,41 @@ class Interface:
         data = get_types(self.session)
         columns = ('name',)
         self.types_tree = self._list_data(data, columns, self.types)
+        self.types_tree.bind(
+            '<Button-3>',
+            lambda event: self._types_popup_menu(event, self.types_tree))
 
     def _list_dishes(self) -> None:
         data = get_dishes(self.session)
         columns = ('name', 'type_name', 'count_per_one')
         self.dishes_tree = self._list_data(data, columns, self.dishes)
+        self.dishes_tree.bind(
+            '<Button-3>',
+            lambda event: self._dishes_popup_menu(event, self.dishes_tree))
 
     def _list_total(self) -> None:
         data = get_total(self.session)
         columns = ('name', 'amount', 'amount_kg')
         self.total_tree = self._list_data(data, columns, self.total)
+        self.total_tree.bind(
+            '<Button-3>',
+            lambda event: self._meat_popup_menu(event, self.total_tree))
 
     def _list_fridge(self) -> None:
         data = get_fridge(self.session)
         columns = ('name', 'amount', 'amount_kg')
         self.fridge_tree = self._list_data(data, columns, self.fridge)
+        self.fridge_tree.bind(
+            '<Button-3>',
+            lambda event: self._meat_popup_menu(event, self.fridge_tree))
 
     def _list_freezer(self) -> None:
         data = get_freezer(self.session)
         columns = ('name', 'amount', 'amount_kg')
         self.freezer_tree = self._list_data(data, columns, self.freezer)
+        self.freezer_tree.bind(
+            '<Button-3>',
+            lambda event: self._meat_popup_menu(event, self.freezer_tree))
 
     def _list_all(self) -> None:
         self._list_types()
@@ -163,6 +180,43 @@ class Interface:
         self.total_tree.destroy()
 
         self._list_all()
+
+    def _meat_popup_menu(self, event, tree: ttk.Treeview):
+        row_id = tree.identify_row(event.y)
+        tree.selection_set(row_id)
+
+        menu = Menu(tree, tearoff=0)
+        menu.add_command(label='Перенести из морозильника',
+                         command=self._open_freezer_to_fridge_window)
+        menu.add_command(label='Перенести из холодильника',
+                         command=self._open_fridge_to_freezer_window)
+        menu.post(event.x_root, event.y_root)
+
+    def _dishes_popup_menu(self, event, tree: ttk.Treeview):
+        row_id = tree.identify_row(event.y)
+        tree.selection_set(row_id)
+
+        menu = Menu(tree, tearoff=0)
+        menu.add_command(label='Добавить новый вид блюда',
+                         command=self._open_dish_adding_window)
+        menu.add_command(label='Изменить существующий вид блюда',
+                         command=self._open_dish_change_window)
+        menu.add_separator()
+        menu.add_command(label='Удалить существующий вид блюда',
+                         command=self._open_delete_dish_window)
+        menu.post(event.x_root, event.y_root)
+
+    def _types_popup_menu(self, event, tree: ttk.Treeview):
+        row_id = tree.identify_row(event.y)
+        tree.selection_set(row_id)
+
+        menu = Menu(tree, tearoff=0)
+        menu.add_command(label='Добавить новый вид мяса',
+                         command=self._open_type_adding_window)
+        menu.add_separator()
+        menu.add_command(label='Удалить существующий вид мяса',
+                         command=self._open_delete_type_window)
+        menu.post(event.x_root, event.y_root)
 
     def _open_type_adding_window(self):
         adding_window = Tk()
@@ -291,7 +345,7 @@ class Interface:
 
         adding_window.focus_force()
 
-    def _open_type_change_window(self):
+    def _open_dish_change_window(self):
         adding_window = Tk()
         adding_window.title('Изменить существующий вид блюда')
         adding_window.geometry('600x400')
@@ -366,8 +420,10 @@ class Interface:
                 add_amount(self.session, {'name': type_name,
                                           'amount': amount})
                 self.freezer_tree.destroy()
+                self.fridge_tree.destroy()
                 self.total_tree.destroy()
                 self._list_freezer()
+                self._list_fridge()
                 self._list_total()
 
             except ValidationError as error:

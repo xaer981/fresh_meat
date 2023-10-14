@@ -12,6 +12,7 @@ def get_total(session: Session):
     return (session.query(RawType.name, RawAmount.total)
             .select_from(RawAmount)
             .join(RawAmount.type)
+            .order_by(RawType.name)
             .all())
 
 
@@ -20,6 +21,7 @@ def get_fridge(session: Session):
     return (session.query(RawType.name, RawAmount.fridge)
             .select_from(RawAmount)
             .join(RawAmount.type)
+            .order_by(RawType.name)
             .all())
 
 
@@ -28,12 +30,13 @@ def get_freezer(session: Session):
     return (session.query(RawType.name, RawAmount.freezer)
             .select_from(RawAmount)
             .join(RawAmount.type)
+            .order_by(RawType.name)
             .all())
 
 
 def get_types(session: Session):
 
-    return session.query(RawType.name).all()
+    return session.query(RawType.name).order_by(RawType.name).all()
 
 
 def get_dishes(session: Session):
