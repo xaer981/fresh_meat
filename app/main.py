@@ -1,16 +1,13 @@
 from operator import itemgetter
 from tkinter import Button, Menu, Tk, messagebox, ttk
+from tkinter.constants import BOTH, CENTER, END, N, W, X
 from tkinter.messagebox import showerror
 
-from app.core.utils import ScrollableFrame, create_frame
-from app.db.crud import (add_amount, add_dish, add_report, add_type,
-                         delete_dish, delete_type, freezer_to_fridge,
-                         fridge_to_freezer, get_dishes, get_dishes_names,
-                         get_freezer, get_fridge, get_total, get_type_freezer,
-                         get_type_fridge, get_types, get_types_names,
-                         update_dish)
-from app.db.database import SessionLocal, create_db
-from app.db.exceptions import ValidationError
+import constants
+from core.utils import ScrollableFrame, create_frame
+from db.crud import crud
+from db.database import SessionLocal, create_db
+from db.exceptions import ValidationError
 
 
 class Interface:
@@ -20,46 +17,41 @@ class Interface:
 
         # root
         self.root = root
-        self.root.title('Мясосчёт v. 0.1')
-        self.root.minsize(900, 600)
-        self.root.geometry('900x600')
-        self.root.protocol('WM_DELETE_WINDOW', self.shutdown)
-        self.root.option_add('*tearOff', False)
+        self.root.title(constants.MAIN_WINDOW_TITLE)
+        self.root.minsize(constants.MAIN_WINDOW_WIDTH,
+                          constants.MAIN_WINDOW_HEIGHT)
+        self.root.geometry(f'{constants.MAIN_WINDOW_WIDTH}x'
+                           f'{constants.MAIN_WINDOW_HEIGHT}')
+        self.root.protocol(constants.CLOSE_WINDOW_PROTOCOL, self.shutdown)
+        self.root.option_add(constants.TEAROFF_OPTION, False)
 
         # menu
         main_menu = Menu()
         edit_menu = Menu()
         settings_menu = Menu()
 
-        edit_menu.add_command(label='Внести отчёт с раздачи',
-                              command=self._open_report_window)
-        edit_menu.add_command(label='Добавить мясо в базу',
-                              command=self._open_amount_adding_window)
-        edit_menu.add_command(label='Перенести из морозильника',
-                              command=self._open_freezer_to_fridge_window)
-        edit_menu.add_command(label='Перенести из холодильника',
-                              command=self._open_fridge_to_freezer_window)
+        # create edit menu
+        for label, command in constants.EDIT_MENU.items():
+            edit_menu.add_command(label=label,
+                                  command=getattr(self, command))
 
-        settings_menu.add_command(label='Добавить вид мяса',
-                                  command=self._open_type_adding_window)
-        settings_menu.add_command(label='Добавить вид блюда',
-                                  command=self._open_dish_adding_window)
-        settings_menu.add_command(label='Изменить существующий вид блюда',
-                                  command=self._open_dish_change_window)
-        settings_menu.add_separator()
-        settings_menu.add_command(label='Удалить существующий вид блюда',
-                                  command=self._open_delete_dish_window)
-        settings_menu.add_command(label='Удалить существующий вид мяса',
-                                  command=self._open_delete_type_window)
+        # create settings menu
+        for label, command in constants.SETTINGS_MENU.items():
+            if label == constants.DELETE_DISH_MENU_LABEL:
+                settings_menu.add_separator()
+            settings_menu.add_command(label=label,
+                                      command=getattr(self, command))
 
-        main_menu.add_cascade(label='Внести изменения в базу', menu=edit_menu)
-        main_menu.add_cascade(label='Настройки', menu=settings_menu)
+        main_menu.add_cascade(label=constants.EDIT_MENU_LABEL,
+                              menu=edit_menu)
+        main_menu.add_cascade(label=constants.SETTINGS_MENU_LABEL,
+                              menu=settings_menu)
 
         self.root.config(menu=main_menu)
 
         # notebook
         notebook = ttk.Notebook()
-        notebook.pack(expand=True, fill='both')
+        notebook.pack(expand=True, fill=BOTH)
 
         self.types = ttk.Frame(notebook)
         self.total = ttk.Frame(notebook)
@@ -67,20 +59,15 @@ class Interface:
         self.freezer = ttk.Frame(notebook)
         self.dishes = ttk.Frame(notebook)
 
-        self.types.pack(fill='both', expand=True)
-        self.total.pack(fill='both', expand=True)
-        self.fridge.pack(fill='both', expand=True)
-        self.freezer.pack(fill='both', expand=True)
-        self.dishes.pack(fill='both', expand=True)
+        # pack frames & add them to notebook
+        for text, frame in constants.MAIN_FRAMES.items():
+            obj = getattr(self, frame)
+            obj.pack(fill=BOTH, expand=True)
+            notebook.add(obj, text=text)
 
-        notebook.add(self.total, text='Всё мясо')
-        notebook.add(self.fridge, text='В холодильнике')
-        notebook.add(self.freezer, text='В морозильнике')
-        notebook.add(self.types, text='Виды мяса')
-        notebook.add(self.dishes, text='Виды блюд')
-
+        # styling
         style = ttk.Style()
-        style.theme_use('winnative')
+        style.theme_use(constants.MAIN_THEME)
 
         # list data from DB
         self._list_all()
@@ -96,73 +83,66 @@ class Interface:
                    data: list[tuple],
                    columns: tuple[str],
                    parent: callable) -> None:
-        all_cols = {
-            'amount': 'Количество (гр.)',
-            'amount_kg': 'Количество (кг.)',
-            'count_per_one': 'Количество на одну порцию (гр.)',
-            'name': 'Название',
-            'type_name': 'Используемое сырье'
-        }
-
-        labels = itemgetter(*columns)(all_cols)
+        labels = itemgetter(*columns)(constants.DATA_COLUMNS_LABELS)
 
         tree = ttk.Treeview(parent,
                             columns=columns,
-                            show='headings')
+                            show=constants.HEADINGS)
         if isinstance(labels, str):
-            tree.heading(0, text=labels, anchor='w')
+            tree.heading(0, text=labels, anchor=W)
         else:
             for i in range(len(labels)):
-                tree.heading(i, text=labels[i], anchor='w')
+                tree.heading(i, text=labels[i], anchor=W)
 
-        tree.pack(fill='both', expand=True)
+        tree.pack(fill=BOTH, expand=True)
 
         for row in data:
-            tree.insert('', 'end', values=([*row, row[1] / 1000]
-                                           if not isinstance(labels, str)
-                                           and 'amount_kg' in columns
-                                           else [*row]))
+            values = ([*row, row[1] / 1000]
+                      if not isinstance(labels, str) and constants.AMOUNT_KG
+                      in columns
+                      else [*row])
+            tree.insert('', END, values=values)
 
         return tree
 
     def _list_types(self) -> None:
-        data = get_types(self.session)
-        columns = ('name',)
+        data = crud.get_types(self.session)
+        columns = constants.LIST_COLUMNS['types']
         self.types_tree = self._list_data(data, columns, self.types)
         self.types_tree.bind(
-            '<Button-3>',
+            constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._types_popup_menu(event, self.types_tree))
 
     def _list_dishes(self) -> None:
-        data = get_dishes(self.session)
-        columns = ('name', 'type_name', 'count_per_one')
+        data = crud.get_dishes(self.session)
+        columns = constants.LIST_COLUMNS['dishes']
         self.dishes_tree = self._list_data(data, columns, self.dishes)
         self.dishes_tree.bind(
-            '<Button-3>',
+            constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._dishes_popup_menu(event, self.dishes_tree))
 
     def _list_total(self) -> None:
-        data = get_total(self.session)
-        columns = ('name', 'amount', 'amount_kg')
+        data = crud.get_total(self.session)
+        columns = constants.LIST_COLUMNS['meat']
         self.total_tree = self._list_data(data, columns, self.total)
         self.total_tree.bind(
-            '<Button-3>',
+            constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._meat_popup_menu(event, self.total_tree))
 
     def _list_fridge(self) -> None:
-        data = get_fridge(self.session)
-        columns = ('name', 'amount', 'amount_kg')
+        data = crud.get_fridge(self.session)
+        columns = constants.LIST_COLUMNS['meat']
         self.fridge_tree = self._list_data(data, columns, self.fridge)
         self.fridge_tree.bind(
-            '<Button-3>',
+            constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._meat_popup_menu(event, self.fridge_tree))
 
     def _list_freezer(self) -> None:
-        data = get_freezer(self.session)
-        columns = ('name', 'amount', 'amount_kg')
+        data = crud.get_freezer(self.session)
+        columns = constants.LIST_COLUMNS['meat']
         self.freezer_tree = self._list_data(data, columns, self.freezer)
         self.freezer_tree.bind(
-            '<Button-3>',
+            constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._meat_popup_menu(event, self.freezer_tree))
 
     def _list_all(self) -> None:
@@ -186,9 +166,9 @@ class Interface:
         tree.selection_set(row_id)
 
         menu = Menu(tree, tearoff=0)
-        menu.add_command(label='Перенести из морозильника',
+        menu.add_command(label=constants.FREEZER_TO_FRIDGE_MENU_LABEL,
                          command=self._open_freezer_to_fridge_window)
-        menu.add_command(label='Перенести из холодильника',
+        menu.add_command(label=constants.FRIDGE_TO_FREEZER_MENU_LABEL,
                          command=self._open_fridge_to_freezer_window)
         menu.post(event.x_root, event.y_root)
 
@@ -197,12 +177,12 @@ class Interface:
         tree.selection_set(row_id)
 
         menu = Menu(tree, tearoff=0)
-        menu.add_command(label='Добавить новый вид блюда',
+        menu.add_command(label=constants.ADD_DISH_MENU_LABEL,
                          command=self._open_dish_adding_window)
-        menu.add_command(label='Изменить существующий вид блюда',
+        menu.add_command(label=constants.CHANGE_DISH_MENU_LABEL,
                          command=self._open_dish_change_window)
         menu.add_separator()
-        menu.add_command(label='Удалить существующий вид блюда',
+        menu.add_command(label=constants.DELETE_DISH_MENU_LABEL,
                          command=self._open_delete_dish_window)
         menu.post(event.x_root, event.y_root)
 
@@ -211,49 +191,57 @@ class Interface:
         tree.selection_set(row_id)
 
         menu = Menu(tree, tearoff=0)
-        menu.add_command(label='Добавить новый вид мяса',
+        menu.add_command(label=constants.ADD_TYPE_MENU_LABEL,
                          command=self._open_type_adding_window)
         menu.add_separator()
-        menu.add_command(label='Удалить существующий вид мяса',
+        menu.add_command(label=constants.DELETE_TYPE_MENU_LABEL,
                          command=self._open_delete_type_window)
         menu.post(event.x_root, event.y_root)
 
     def _open_type_adding_window(self):
         adding_window = Tk()
-        adding_window.title('Добавить вид мяса')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.ADD_TYPE_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_entry.get()
 
             try:
-                add_type(self.session, type_name)
+                crud.add_type(self.session, type_name)
                 self.types_tree.destroy()
                 self._list_types()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
 
-        type_frame = create_frame(adding_window, 'Введите название вида')
+        type_frame = create_frame(adding_window,
+                                  constants.TYPES_FRAME_ENTRY_TEXT)
         type_entry = ttk.Entry(type_frame)
-        type_entry.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+        type_entry.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
 
         add_type_button = ttk.Button(adding_window,
-                                     text='Добавить',
+                                     text=constants.ADD_BUTTON_TEXT,
                                      command=send_data_and_update)
-        add_type_button.pack(anchor='center')
+        add_type_button.pack(anchor=CENTER)
         adding_window.focus_force()
 
     def _open_dish_adding_window(self):
         adding_window = Tk()
-        adding_window.title('Добавить вид блюда')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.ADD_DISH_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -261,14 +249,14 @@ class Interface:
             dish_name = dish_name_entry.get()
 
             try:
-                add_dish(self.session, {'name': type_name,
-                                        'count_per_one': count_per_one,
-                                        'dish_name': dish_name})
+                crud.add_dish(self.session, {'name': type_name,
+                                             'count_per_one': count_per_one,
+                                             'dish_name': dish_name})
                 self.dishes_tree.destroy()
                 self._list_dishes()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
@@ -290,29 +278,34 @@ class Interface:
                 add_dish_button.destroy()
 
             amount_frame = create_frame(adding_window,
-                                        ('Введите количество '
-                                         'на одну порцию (гр.)'))
+                                        constants.AMOUNT_FRAME_ENTRY_TEXT)
             dish_name_frame = create_frame(adding_window,
-                                           'Введите название блюда')
+                                           constants.DISHES_FRAME_ENTRY_TEXT)
             amount_spinbox = ttk.Spinbox(amount_frame,
                                          from_=1,
                                          to=500,
                                          increment=1,
-                                         validate='key',
+                                         validate=constants.KEY,
                                          validatecommand=(
-                                            amount_frame.register(
-                                                _is_num),
-                                            '%P'))
-            amount_spinbox.pack(anchor='center', fill='x')
+                                             amount_frame.register(
+                                                 _is_num),
+                                             '%P'))
+            amount_spinbox.pack(anchor=CENTER, fill=X)
             dish_name_entry = ttk.Entry(dish_name_frame)
-            dish_name_entry.pack(anchor='center', fill='x')
-            amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
-            dish_name_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+            dish_name_entry.pack(anchor=CENTER, fill=X)
+            amount_frame.pack(anchor=CENTER,
+                              fill=X,
+                              padx=constants.DEFAULT_PADX,
+                              pady=constants.DEFAULT_PADY)
+            dish_name_frame.pack(anchor=CENTER,
+                                 fill=X,
+                                 padx=constants.DEFAULT_PADX,
+                                 pady=constants.DEFAULT_PADY)
 
             add_dish_button = ttk.Button(adding_window,
-                                         text='Добавить',
+                                         text=constants.ADD_BUTTON_TEXT,
                                          command=send_data_and_update)
-            add_dish_button.pack(anchor='center')
+            add_dish_button.pack(anchor=CENTER)
 
         def _is_num(val):
             try:
@@ -335,34 +328,40 @@ class Interface:
         dish_name_entry = None
 
         type_frame = create_frame(adding_window,
-                                  'Выберите используемое сырье')
+                                  constants.CHOOSE_TYPE_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_types_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
-        type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+                                     values=crud.get_types_names(self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
+        type_combobox.bind(constants.COMBOBOX_SELECTED, _create_amount_frame)
 
         adding_window.focus_force()
 
     def _open_dish_change_window(self):
         adding_window = Tk()
-        adding_window.title('Изменить существующий вид блюда')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.CHANGE_DISH_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             dish_name = type_combobox.get()
             count_per_one = amount_spinbox.get()
 
             try:
-                update_dish(self.session, {'name': dish_name,
-                                           'count_per_one': count_per_one})
+                crud.update_dish(self.session, {'name': dish_name,
+                                                'count_per_one':
+                                                    count_per_one})
                 self.dishes_tree.destroy()
                 self._list_dishes()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
@@ -379,46 +378,54 @@ class Interface:
                 apply_change_button.destroy()
 
             amount_frame = create_frame(adding_window,
-                                        ('Введите количество '
-                                         'на порцию (гр.)'))
+                                        constants.AMOUNT_FRAME_ENTRY_TEXT)
             amount_spinbox = ttk.Spinbox(amount_frame,
                                          from_=1,
                                          to=500)
-            amount_spinbox.pack(anchor='center', fill='x')
-            amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+            amount_spinbox.pack(anchor=CENTER, fill=X)
+            amount_frame.pack(anchor=CENTER,
+                              fill=X,
+                              padx=constants.DEFAULT_PADX,
+                              pady=constants.DEFAULT_PADY)
 
             apply_change_button = ttk.Button(adding_window,
-                                             text='Изменить',
+                                             text=constants.CHANGE_BUTTON_TEXT,
                                              command=send_data_and_update)
-            apply_change_button.pack(anchor='center')
+            apply_change_button.pack(anchor=CENTER)
 
         amount_spinbox = None
         amount_frame = None
         apply_change_button = None
 
         type_frame = create_frame(adding_window,
-                                  'Выберите изменяемый вид блюда')
+                                  constants.CHOOSE_DISH_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_dishes_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
-        type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+                                     values=crud.get_dishes_names(
+                                         self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
+        type_combobox.bind(constants.COMBOBOX_SELECTED, _create_amount_frame)
         adding_window.focus_force()
 
     def _open_amount_adding_window(self):
         adding_window = Tk()
-        adding_window.title('Добавить мясо в базу')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.ADD_MEAT_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
             amount = amount_spinbox.get()
 
             try:
-                add_amount(self.session, {'name': type_name,
-                                          'amount': amount})
+                crud.add_amount(self.session, {'name': type_name,
+                                               'amount': amount})
                 self.freezer_tree.destroy()
                 self.fridge_tree.destroy()
                 self.total_tree.destroy()
@@ -427,7 +434,7 @@ class Interface:
                 self._list_total()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
@@ -447,43 +454,51 @@ class Interface:
             return True
 
         type_frame = create_frame(adding_window,
-                                  'Выберите добавляемый вид мяса')
+                                  constants.CHOOSE_ADD_TYPE_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_types_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+                                     values=crud.get_types_names(self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
 
         amount_frame = create_frame(adding_window,
-                                    'Введите количество мяса (гр.)')
+                                    constants.ADD_AMOUNT_FRAME_ENTRY_TEXT)
         amount_spinbox = ttk.Spinbox(amount_frame,
                                      from_=1,
                                      to=999999,
-                                     validate='key',
+                                     validate=constants.KEY,
                                      validatecommand=(
                                          amount_frame.register(_is_num), '%P'))
-        amount_spinbox.pack(anchor='center', fill='x')
-        amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+        amount_spinbox.pack(anchor=CENTER, fill=X)
+        amount_frame.pack(anchor=CENTER,
+                          fill=X,
+                          padx=constants.DEFAULT_PADX,
+                          pady=constants.DEFAULT_PADY)
 
         add_amount_button = ttk.Button(adding_window,
-                                       text='Добавить',
+                                       text=constants.ADD_BUTTON_TEXT,
                                        command=send_data_and_update)
-        add_amount_button.pack(anchor='center')
+        add_amount_button.pack(anchor=CENTER)
         adding_window.focus_force()
 
     def _open_freezer_to_fridge_window(self):
         adding_window = Tk()
-        adding_window.title('Перенести в холодильник')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.FREEZER_TO_FRIDGE_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
             amount = amount_spinbox.get()
 
             try:
-                freezer_to_fridge(self.session, {'name': type_name,
-                                                 'amount': amount})
+                crud.freezer_to_fridge(self.session, {'name': type_name,
+                                                      'amount': amount})
                 self.freezer_tree.destroy()
                 self.fridge_tree.destroy()
                 self.total_tree.destroy()
@@ -492,7 +507,7 @@ class Interface:
                 self._list_total()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
@@ -505,7 +520,7 @@ class Interface:
 
                 return False
 
-            if get_type_freezer(self.session, type_combobox.get()) < val:
+            if crud.get_type_freezer(self.session, type_combobox.get()) < val:
 
                 return False
 
@@ -522,58 +537,67 @@ class Interface:
             if to_fridge_button:
                 to_fridge_button.destroy()
 
-            type_freezer = get_type_freezer(self.session, type_combobox.get())
+            type_freezer = crud.get_type_freezer(self.session,
+                                                 type_combobox.get())
             amount_frame = create_frame(adding_window,
-                                        ('Введите количество '
-                                         'для переноса (гр.)'))
+                                        constants.MOVE_FRAME_ENTRY_TEXT)
             amount_label = ttk.Label(amount_frame,
-                                     text=(f'Сейчас в морозильнике '
-                                           f'{type_freezer} гр.'))
+                                     text=((constants.MOVE_FREEZER_LABEL_TEXT
+                                            .format(type_freezer=type_freezer))
+                                           ))
             amount_spinbox = ttk.Spinbox(amount_frame,
                                          from_=1,
                                          to=type_freezer,
                                          increment=1,
-                                         validate='key',
+                                         validate=constants.KEY,
                                          validatecommand=(
-                                            amount_frame.register(
-                                                _is_num_and_less_than_now),
-                                            '%P'))
-            amount_spinbox.pack(anchor='center', fill='x')
-            amount_label.pack(anchor='n')
-            amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+                                             amount_frame.register(
+                                                 _is_num_and_less_than_now),
+                                             '%P'))
+            amount_spinbox.pack(anchor=CENTER, fill=X)
+            amount_label.pack(anchor=N)
+            amount_frame.pack(anchor=CENTER,
+                              fill=X,
+                              padx=constants.DEFAULT_PADX,
+                              pady=constants.DEFAULT_PADY)
 
             to_fridge_button = ttk.Button(adding_window,
-                                          text='Перенести',
+                                          text=constants.MOVE_BUTTON_TEXT,
                                           command=send_data_and_update)
-            to_fridge_button.pack(anchor='center')
+            to_fridge_button.pack(anchor=CENTER)
 
         amount_frame = None
         amount_spinbox = None
         to_fridge_button = None
 
         type_frame = create_frame(adding_window,
-                                  'Выберите переносимый вид мяса')
+                                  constants.MOVE_FRAME_LABEL_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_types_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
-        type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+                                     values=crud.get_types_names(self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
+        type_combobox.bind(constants.COMBOBOX_SELECTED, _create_amount_frame)
         adding_window.focus_force()
 
     def _open_fridge_to_freezer_window(self):
         adding_window = Tk()
-        adding_window.title('Перенести в морозильник')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.FRIDGE_TO_FREEZER_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
             amount = amount_spinbox.get()
 
             try:
-                fridge_to_freezer(self.session, {'name': type_name,
-                                                 'amount': amount})
+                crud.fridge_to_freezer(self.session, {'name': type_name,
+                                                      'amount': amount})
                 self.freezer_tree.destroy()
                 self.fridge_tree.destroy()
                 self.total_tree.destroy()
@@ -582,7 +606,7 @@ class Interface:
                 self._list_total()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
@@ -595,7 +619,7 @@ class Interface:
 
                 return False
 
-            if get_type_fridge(self.session, type_combobox.get()) < val:
+            if crud.get_type_fridge(self.session, type_combobox.get()) < val:
 
                 return False
 
@@ -612,50 +636,58 @@ class Interface:
             if to_freezer_button:
                 to_freezer_button.destroy()
 
-            type_fridge = get_type_fridge(self.session, type_combobox.get())
+            type_fridge = crud.get_type_fridge(self.session,
+                                               type_combobox.get())
             amount_frame = create_frame(adding_window,
-                                        ('Введите количество '
-                                         'для переноса (гр.)'))
+                                        constants.MOVE_FRAME_ENTRY_TEXT)
             amount_label = ttk.Label(amount_frame,
-                                     text=(f'Сейчас в холодильнике '
-                                           f'{type_fridge} гр.'))
+                                     text=(constants.MOVE_FRIDGE_LABEL_TEXT
+                                           .format(type_fridge=type_fridge)))
             amount_spinbox = ttk.Spinbox(amount_frame,
                                          from_=1,
                                          to=type_fridge,
                                          increment=1,
-                                         validate='key',
+                                         validate=constants.KEY,
                                          validatecommand=(
-                                            amount_frame.register(
-                                                _is_num_and_less_than_now),
-                                            '%P'))
-            amount_spinbox.pack(anchor='center', fill='x')
-            amount_label.pack(anchor='n')
-            amount_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+                                             amount_frame.register(
+                                                 _is_num_and_less_than_now),
+                                             '%P'))
+            amount_spinbox.pack(anchor=CENTER, fill=X)
+            amount_label.pack(anchor=N)
+            amount_frame.pack(anchor=CENTER,
+                              fill=X,
+                              padx=constants.DEFAULT_PADX,
+                              pady=constants.DEFAULT_PADY)
 
             to_freezer_button = ttk.Button(adding_window,
-                                           text='Перенести',
+                                           text=constants.MOVE_BUTTON_TEXT,
                                            command=send_data_and_update)
-            to_freezer_button.pack(anchor='center')
+            to_freezer_button.pack(anchor=CENTER)
 
         amount_spinbox = None
         amount_frame = None
         to_freezer_button = None
 
         type_frame = create_frame(adding_window,
-                                  'Выберите переносимый вид мяса')
+                                  constants.MOVE_FRAME_LABEL_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_types_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
-        type_combobox.bind('<<ComboboxSelected>>', _create_amount_frame)
+                                     values=crud.get_types_names(self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
+        type_combobox.bind(constants.COMBOBOX_SELECTED, _create_amount_frame)
         adding_window.focus_force()
 
     def _open_report_window(self):
         adding_window = Tk()
-        adding_window.title('Внести отчёт с раздачи')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.ADD_REPORT_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         report_frame = ScrollableFrame(adding_window)
         row = 2
@@ -664,15 +696,23 @@ class Interface:
 
         def _add_combobox_and_spinbox():
             nonlocal row
+            used_names = [combobox.get() for combobox in results.keys()]
             type_combobox = ttk.Combobox(report_frame.interior,
-                                         values=get_dishes_names(self.session),
-                                         state='readonly')
+                                         values=crud.get_dishes_names(
+                                             self.session, used_names),
+                                         state=constants.READONLY)
             amount_spinbox = ttk.Spinbox(report_frame.interior,
                                          from_=1,
                                          to=500,
                                          increment=1)
-            type_combobox.grid(column=0, row=row, pady=5, padx=5)
-            amount_spinbox.grid(column=1, row=row, pady=5, padx=5)
+            type_combobox.grid(column=0,
+                               row=row,
+                               padx=constants.DEFAULT_PADX,
+                               pady=constants.DEFAULT_PADY)
+            amount_spinbox.grid(column=1,
+                                row=row,
+                                padx=constants.DEFAULT_PADX,
+                                pady=constants.DEFAULT_PADY)
 
             row += 1
 
@@ -680,8 +720,8 @@ class Interface:
 
         def click_send_button():
             result = messagebox.askyesno(
-                title='Внести отчёт?',
-                message='Уверены, что хотите внести информацию из отчёта?',
+                title=constants.REPORT_MSGBOX_TITLE,
+                message=constants.REPORT_MSGBOX_MESSAGE,
                 icon=messagebox.QUESTION,
                 default=messagebox.NO)
             if result:
@@ -692,15 +732,19 @@ class Interface:
 
         def send_data_and_update():
             try:
-                used_amount = add_report(self.session,
-                                         {key.get(): value.get()
-                                          for key, value in results.items()
-                                          if key.get()})
-                messagebox.showinfo('Удачно!',
-                                    [(f'Мяса вида "{name}" '
-                                      f'- использовано {amount} гр.'
-                                      f'({amount / 1000} кг.)')
-                                     for name, amount in used_amount.items()])
+                used_amount = crud.add_report(self.session,
+                                              {key.get(): value.get()
+                                               for key, value
+                                               in results.items()
+                                               if key.get()})
+                message = [constants.REPORT_MSGBOX_SUCCESS_MESSAGE.format(
+                    name=name,
+                    amount=amount,
+                    amount_kg=amount / 1000)
+                    for name, amount
+                    in used_amount.items()]
+                messagebox.showinfo(constants.REPORT_MSGBOX_SUCCESS_TITLE,
+                                    message)
                 self.freezer_tree.destroy()
                 self.fridge_tree.destroy()
                 self.total_tree.destroy()
@@ -709,61 +753,70 @@ class Interface:
                 self._list_total()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
 
-        ttk.Label(report_frame.interior, text='Вид блюда').grid(column=0,
-                                                                row=0,
-                                                                pady=5,
-                                                                padx=5)
         ttk.Label(report_frame.interior,
-                  text='Количество порций').grid(column=1,
-                                                 row=0,
-                                                 pady=5,
-                                                 padx=5)
+                  text=constants.REPORT_DISH_LABEL).grid(
+            column=0,
+            row=0,
+            padx=constants.DEFAULT_PADX,
+            pady=constants.DEFAULT_PADY
+        )
+        ttk.Label(report_frame.interior,
+                  text=constants.REPORT_DISH_AMOUNT_LABEL).grid(
+                      column=1,
+                      row=0,
+                      padx=constants.DEFAULT_PADX,
+                      pady=constants.DEFAULT_PADY)
         _add_combobox_and_spinbox()
 
         Button(adding_window,
-               text='Отправить отчёт',
+               text=constants.SEND_REPORT_BUTTON_TEXT,
                command=click_send_button,
-               bg='red',
-               fg='white').pack(anchor='center')
+               bg=constants.DANGER_BUTTON_BG,
+               fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
 
         Button(adding_window,
-               text='Добавить ещё строку',
+               text=constants.ADD_ROW_REPORT_BUTTON_TEXT,
                command=_add_combobox_and_spinbox,
-               bg='green',
-               fg='white').pack(anchor='center')
+               bg=constants.ADD_ROW_BUTTON_BG,
+               fg=constants.ADD_ROW_BUTTON_FG).pack(anchor=CENTER)
 
-        report_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+        report_frame.pack(anchor=CENTER,
+                          fill=X,
+                          padx=constants.DEFAULT_PADX,
+                          pady=constants.DEFAULT_PADY)
         adding_window.focus_force()
 
     def _open_delete_dish_window(self):
         adding_window = Tk()
-        adding_window.title('Удалить блюдо')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.DELETE_DISH_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             dish_name = type_combobox.get()
 
             try:
-                delete_dish(self.session, dish_name)
+                crud.delete_dish(self.session, dish_name)
                 self.dishes_tree.destroy()
                 self._list_dishes()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
 
         def click_send_button():
             result = messagebox.askyesno(
-                title='Удалить вид блюда?',
-                message='Уверены, что хотите удалить данный вид блюда?',
+                title=constants.DELETE_DISH_MSGBOX_TITLE,
+                message=constants.DELETE_DISH_MSGBOX_MESSAGE,
                 icon=messagebox.QUESTION,
                 default=messagebox.NO)
             if result:
@@ -773,49 +826,51 @@ class Interface:
                 adding_window.focus_force()
 
         type_frame = create_frame(adding_window,
-                                  'Выберите удаляемый вид блюда')
+                                  constants.CHOOSE_DELETE_DISH_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_dishes_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+                                     values=crud.get_dishes_names(
+                                         self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
 
         Button(adding_window,
-               text='Удалить вид блюда',
+               text=constants.DELETE_DISH_BUTTON_TEXT,
                command=click_send_button,
-               bg='red',
-               fg='white').pack(anchor='center')
+               bg=constants.DANGER_BUTTON_BG,
+               fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
 
         adding_window.focus_force()
 
     def _open_delete_type_window(self):
         adding_window = Tk()
-        adding_window.title('Удалить вид мяса')
-        adding_window.geometry('600x400')
-        adding_window.minsize(600, 400)
+        adding_window.title(constants.DELETE_TYPE_MENU_LABEL)
+        adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
+                              constants.CHILD_WINDOW_HEIGHT)
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
+                               f'{constants.CHILD_WINDOW_HEIGHT}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
 
             try:
-                delete_type(self.session, type_name)
+                crud.delete_type(self.session, type_name)
 
                 self._update_all_trees()
 
             except ValidationError as error:
-                showerror('Ошибка!', error.message)
+                showerror(constants.ERROR_TITLE, error.message)
 
             finally:
                 adding_window.destroy()
 
         def click_send_button():
             result = messagebox.askyesno(
-                title='Удалить вид мяса?',
-                message=('ВНИМАНИЕ!\nПри удалении данного вида мяса, '
-                         'все связанные с ним виды блюд тоже будут удалены!\n'
-                         'ВСЯ ИНФОРМАЦИЯ О КОЛИЧЕСТВЕ '
-                         'ДАННОГО ВИДА МЯСА ТОЖЕ БУДЕТ УДАЛЕНА!\n'
-                         'Уверены, что хотите удалить данный вид мяса?'),
+                title=constants.DELETE_TYPE_MSGBOX_TITLE,
+                message=constants.DELETE_TYPE_MSGBOX_MESSAGE,
                 icon=messagebox.WARNING,
                 default=messagebox.NO)
             if result:
@@ -825,18 +880,21 @@ class Interface:
                 adding_window.focus_force()
 
         type_frame = create_frame(adding_window,
-                                  'Выберите удаляемый вид мяса')
+                                  constants.CHOOSE_DELETE_TYPE_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
-                                     values=get_types_names(self.session),
-                                     state='readonly')
-        type_combobox.pack(anchor='center', fill='x')
-        type_frame.pack(anchor='center', fill='x', padx=5, pady=5)
+                                     values=crud.get_types_names(self.session),
+                                     state=constants.READONLY)
+        type_combobox.pack(anchor=CENTER, fill=X)
+        type_frame.pack(anchor=CENTER,
+                        fill=X,
+                        padx=constants.DEFAULT_PADX,
+                        pady=constants.DEFAULT_PADY)
 
         Button(adding_window,
-               text='Удалить вид мяса',
+               text=constants.DELETE_TYPE_BUTTON_TEXT,
                command=click_send_button,
-               bg='red',
-               fg='white').pack(anchor='center')
+               bg=constants.DANGER_BUTTON_BG,
+               fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
 
         adding_window.focus_force()
 

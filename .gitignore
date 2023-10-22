@@ -155,4 +155,7 @@ cython_debug/
 # VsCode
 .vscode
 
+# Project files
 sqlite.db
+.flake8
+file_version_info.txt
