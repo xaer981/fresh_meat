@@ -1,10 +1,12 @@
+from collections import defaultdict
 from operator import itemgetter
 from tkinter import Button, Menu, Tk, messagebox, ttk
 from tkinter.constants import BOTH, CENTER, END, N, W, X
 from tkinter.messagebox import showerror
 
 import constants
-from core.utils import ScrollableFrame, create_frame
+from core.utils import (ScrollableFrame, create_frame,
+                        generate_interface_center_x_y)
 from db.crud import crud
 from db.database import SessionLocal, create_db
 from db.exceptions import ValidationError
@@ -18,12 +20,28 @@ class Interface:
         # root
         self.root = root
         self.root.title(constants.MAIN_WINDOW_TITLE)
-        self.root.minsize(constants.MAIN_WINDOW_WIDTH,
-                          constants.MAIN_WINDOW_HEIGHT)
-        self.root.geometry(f'{constants.MAIN_WINDOW_WIDTH}x'
-                           f'{constants.MAIN_WINDOW_HEIGHT}')
         self.root.protocol(constants.CLOSE_WINDOW_PROTOCOL, self.shutdown)
         self.root.option_add(constants.TEAROFF_OPTION, False)
+
+        # sizes
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        x, y = generate_interface_center_x_y(screen_width,
+                                             screen_height,
+                                             constants.MAIN_WINDOW_WIDTH,
+                                             constants.MAIN_WINDOW_HEIGHT)
+        self.root.minsize(constants.MAIN_WINDOW_WIDTH,
+                          constants.MAIN_WINDOW_HEIGHT)
+        self.root.geometry(f'{constants.MAIN_WINDOW_WIDTH}'
+                           f'x{constants.MAIN_WINDOW_HEIGHT}'
+                           f'+{x}'
+                           f'+{y}')
+
+        self.child_win_x, self.child_win_y = generate_interface_center_x_y(
+            screen_width,
+            screen_height,
+            constants.CHILD_WINDOW_WIDTH,
+            constants.CHILD_WINDOW_HEIGHT)
 
         # menu
         main_menu = Menu()
@@ -203,8 +221,10 @@ class Interface:
         adding_window.title(constants.ADD_TYPE_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_entry.get()
@@ -231,7 +251,9 @@ class Interface:
 
         add_type_button = ttk.Button(adding_window,
                                      text=constants.ADD_BUTTON_TEXT,
+                                     cursor=constants.BTN_DEFAULT_CUR,
                                      command=send_data_and_update)
+        adding_window.bind('<Return>', lambda event: send_data_and_update())
         add_type_button.pack(anchor=CENTER)
         adding_window.focus_force()
 
@@ -240,8 +262,10 @@ class Interface:
         adding_window.title(constants.ADD_DISH_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -304,7 +328,10 @@ class Interface:
 
             add_dish_button = ttk.Button(adding_window,
                                          text=constants.ADD_BUTTON_TEXT,
+                                         cursor=constants.BTN_DEFAULT_CUR,
                                          command=send_data_and_update)
+            adding_window.bind('<Return>',
+                               lambda event: send_data_and_update())
             add_dish_button.pack(anchor=CENTER)
 
         def _is_num(val):
@@ -346,8 +373,10 @@ class Interface:
         adding_window.title(constants.CHANGE_DISH_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             dish_name = type_combobox.get()
@@ -390,7 +419,10 @@ class Interface:
 
             apply_change_button = ttk.Button(adding_window,
                                              text=constants.CHANGE_BUTTON_TEXT,
+                                             cursor=constants.BTN_DEFAULT_CUR,
                                              command=send_data_and_update)
+            adding_window.bind('<Return>',
+                               lambda event: send_data_and_update())
             apply_change_button.pack(anchor=CENTER)
 
         amount_spinbox = None
@@ -416,8 +448,10 @@ class Interface:
         adding_window.title(constants.ADD_MEAT_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -480,8 +514,11 @@ class Interface:
 
         add_amount_button = ttk.Button(adding_window,
                                        text=constants.ADD_BUTTON_TEXT,
+                                       cursor=constants.BTN_DEFAULT_CUR,
                                        command=send_data_and_update)
         add_amount_button.pack(anchor=CENTER)
+        adding_window.bind('<Return>',
+                           lambda event: send_data_and_update())
         adding_window.focus_force()
 
     def _open_freezer_to_fridge_window(self):
@@ -489,8 +526,10 @@ class Interface:
         adding_window.title(constants.FREEZER_TO_FRIDGE_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -563,8 +602,11 @@ class Interface:
 
             to_fridge_button = ttk.Button(adding_window,
                                           text=constants.MOVE_BUTTON_TEXT,
+                                          cursor=constants.BTN_DEFAULT_CUR,
                                           command=send_data_and_update)
             to_fridge_button.pack(anchor=CENTER)
+            adding_window.bind('<Return>',
+                               lambda event: send_data_and_update())
 
         amount_frame = None
         amount_spinbox = None
@@ -588,8 +630,10 @@ class Interface:
         adding_window.title(constants.FRIDGE_TO_FREEZER_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -661,8 +705,11 @@ class Interface:
 
             to_freezer_button = ttk.Button(adding_window,
                                            text=constants.MOVE_BUTTON_TEXT,
+                                           cursor=constants.BTN_DEFAULT_CUR,
                                            command=send_data_and_update)
             to_freezer_button.pack(anchor=CENTER)
+            adding_window.bind('<Return>',
+                               lambda event: send_data_and_update())
 
         amount_spinbox = None
         amount_frame = None
@@ -686,8 +733,10 @@ class Interface:
         adding_window.title(constants.ADD_REPORT_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         report_frame = ScrollableFrame(adding_window)
         row = 2
@@ -696,10 +745,9 @@ class Interface:
 
         def _add_combobox_and_spinbox():
             nonlocal row
-            used_names = [combobox.get() for combobox in results.keys()]
             type_combobox = ttk.Combobox(report_frame.interior,
                                          values=crud.get_dishes_names(
-                                             self.session, used_names),
+                                             self.session),
                                          state=constants.READONLY)
             amount_spinbox = ttk.Spinbox(report_frame.interior,
                                          from_=1,
@@ -732,19 +780,26 @@ class Interface:
 
         def send_data_and_update():
             try:
-                used_amount = crud.add_report(self.session,
-                                              {key.get(): value.get()
-                                               for key, value
-                                               in results.items()
-                                               if key.get()})
-                message = [constants.REPORT_MSGBOX_SUCCESS_MESSAGE.format(
-                    name=name,
-                    amount=amount,
-                    amount_kg=amount / 1000)
-                    for name, amount
-                    in used_amount.items()]
-                messagebox.showinfo(constants.REPORT_MSGBOX_SUCCESS_TITLE,
-                                    message)
+                data = defaultdict(int)
+                for key, value in results.items():
+                    if key.get() and value.get():
+                        data[key.get()] += int(value.get())
+                used_amount = crud.add_report(self.session, data)
+
+                if used_amount:
+                    title = constants.REPORT_MSGBOX_SUCCESS_TITLE
+                    message = [constants.REPORT_MSGBOX_SUCCESS_MESSAGE.format(
+                        name=name,
+                        amount=amount,
+                        amount_kg=amount / 1000)
+                        for name, amount
+                        in used_amount.items()
+                    ]
+                else:
+                    title = constants.REPORT_MSGBOX_EMPTY_TITLE
+                    message = constants.REPORT_MSGBOX_EMPTY_MESSAGE
+
+                messagebox.showinfo(title, message)
                 self.freezer_tree.destroy()
                 self.fridge_tree.destroy()
                 self.total_tree.destroy()
@@ -767,23 +822,29 @@ class Interface:
         )
         ttk.Label(report_frame.interior,
                   text=constants.REPORT_DISH_AMOUNT_LABEL).grid(
-                      column=1,
-                      row=0,
-                      padx=constants.DEFAULT_PADX,
-                      pady=constants.DEFAULT_PADY)
+            column=1,
+            row=0,
+            padx=constants.DEFAULT_PADX,
+            pady=constants.DEFAULT_PADY
+        )
         _add_combobox_and_spinbox()
 
         Button(adding_window,
                text=constants.SEND_REPORT_BUTTON_TEXT,
                command=click_send_button,
+               cursor=constants.BTN_DEFAULT_CUR,
                bg=constants.DANGER_BUTTON_BG,
                fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
 
         Button(adding_window,
                text=constants.ADD_ROW_REPORT_BUTTON_TEXT,
                command=_add_combobox_and_spinbox,
+               cursor=constants.BTN_PLUS_CUR,
                bg=constants.ADD_ROW_BUTTON_BG,
                fg=constants.ADD_ROW_BUTTON_FG).pack(anchor=CENTER)
+
+        adding_window.bind('<Return>',
+                           lambda event: click_send_button())
 
         report_frame.pack(anchor=CENTER,
                           fill=X,
@@ -796,8 +857,10 @@ class Interface:
         adding_window.title(constants.DELETE_DISH_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             dish_name = type_combobox.get()
@@ -840,8 +903,12 @@ class Interface:
         Button(adding_window,
                text=constants.DELETE_DISH_BUTTON_TEXT,
                command=click_send_button,
+               cursor=constants.BTN_DEFAULT_CUR,
                bg=constants.DANGER_BUTTON_BG,
                fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
+
+        adding_window.bind('<Return>',
+                           lambda event: click_send_button())
 
         adding_window.focus_force()
 
@@ -850,8 +917,10 @@ class Interface:
         adding_window.title(constants.DELETE_TYPE_MENU_LABEL)
         adding_window.minsize(constants.CHILD_WINDOW_WIDTH,
                               constants.CHILD_WINDOW_HEIGHT)
-        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}x'
-                               f'{constants.CHILD_WINDOW_HEIGHT}')
+        adding_window.geometry(f'{constants.CHILD_WINDOW_WIDTH}'
+                               f'x{constants.CHILD_WINDOW_HEIGHT}'
+                               f'+{self.child_win_x}'
+                               f'+{self.child_win_y}')
 
         def send_data_and_update():
             type_name = type_combobox.get()
@@ -893,8 +962,11 @@ class Interface:
         Button(adding_window,
                text=constants.DELETE_TYPE_BUTTON_TEXT,
                command=click_send_button,
+               cursor=constants.BTN_DEFAULT_CUR,
                bg=constants.DANGER_BUTTON_BG,
                fg=constants.DANGER_BUTTON_FG).pack(anchor=CENTER)
+        adding_window.bind('<Return>',
+                           lambda event: click_send_button())
 
         adding_window.focus_force()
 

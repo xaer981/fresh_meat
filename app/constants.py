@@ -1,4 +1,6 @@
 # INTERFACE MAIN CONSTANTS
+BTN_DEFAULT_CUR = 'hand2'
+BTN_PLUS_CUR = 'plus'
 CHILD_WINDOW_HEIGHT = 400
 CHILD_WINDOW_WIDTH = 600
 COMBOBOX_SELECTED = '<<ComboboxSelected>>'
@@ -7,7 +9,7 @@ DEFAULT_PADX = DEFAULT_PADY = 5
 KEY = 'key'
 MAIN_WINDOW_HEIGHT = 600
 MAIN_WINDOW_WIDTH = 900
-VERSION = '0.0.1'
+VERSION = '0.2'
 MAIN_WINDOW_TITLE = f'Мясосчет v. {VERSION}'
 READONLY = 'readonly'
 RIGHT_MOUSE_BUTTON = '<Button-3>'
@@ -74,11 +76,14 @@ DELETE_TYPE_MSGBOX_MESSAGE = ('ВНИМАНИЕ!\nПри удалении дан
                               'ДАННОГО ВИДА МЯСА ТОЖЕ БУДЕТ УДАЛЕНА!\n'
                               'Уверены, что хотите удалить данный вид мяса?')
 DELETE_TYPE_MSGBOX_TITLE = 'Удалить вид мяса?'
+REPORT_MSGBOX_EMPTY_TITLE = 'Никаких изменений не внесено!'
+REPORT_MSGBOX_EMPTY_MESSAGE = ('Все строки пустые или во всех не выбрано '
+                               'одно из полей (количество/блюдо)')
 REPORT_MSGBOX_MESSAGE = 'Уверены, что хотите внести информацию из отчёта?'
 REPORT_MSGBOX_TITLE = 'Внести отчёт?'
 REPORT_MSGBOX_SUCCESS_TITLE = 'Удачно!'
 REPORT_MSGBOX_SUCCESS_MESSAGE = ('Мяса вида "{name}" - использовано {amount} '
-                                 'гр. ({amount_kg} кг.)')
+                                 'гр. ({amount_kg} кг.)\n')
 
 # TREES CONSTANTS
 AMOUNT = 'amount'

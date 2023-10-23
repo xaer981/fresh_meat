@@ -33,7 +33,7 @@ class ScrollableFrame(ttk.Frame):
             canvas.unbind_all('<MouseWheel>')
 
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), 'units')
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
 
         def _configure_interior(event):
             size = (interior.winfo_reqwidth(), interior.winfo_reqheight())
@@ -60,3 +60,13 @@ def create_frame(master: ttk.Frame, label_text: str) -> ttk.Frame:
     label.pack(anchor='center')
 
     return frame
+
+
+def generate_interface_center_x_y(screen_width: int,
+                                  screen_height: int,
+                                  win_width: int,
+                                  win_height: int) -> tuple[int]:
+    x = (screen_width / 2) - (win_width / 2)
+    y = (screen_height / 2) - (win_height / 2)
+
+    return int(x), int(y)

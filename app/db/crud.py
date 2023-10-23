@@ -56,11 +56,7 @@ class CRUD:
                                .order_by(RawType.name)).scalars().all()
 
     @staticmethod
-    def get_dishes_names(session: Session, used_names: list = None):
-        if used_names is not None:
-            return session.execute(select(Dish.name)
-                                   .where(Dish.name.not_in(used_names))
-                                   .order_by(Dish.name)).scalars().all()
+    def get_dishes_names(session: Session):
 
         return session.execute(select(Dish.name)
                                .order_by(Dish.name)).scalars().all()
@@ -245,12 +241,18 @@ class CRUD:
                 if raw_amount.fridge < 0:
 
                     session.rollback()
+
                     raise ValidationError(f'При таком количестве порций '
                                           f'({amount}) количество мяса вида '
                                           f'"{raw_amount.type.name}" станет '
                                           f'отрицательным!')
 
                 results[raw_amount.type.name] += used_amount
+            else:
+                session.rollback()
+
+                raise ValidationError(f'Мясо вида "{dish.type.name}" '
+                                      f'пока не было добавлено в базу!')
 
         session.commit()
 
