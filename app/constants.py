@@ -131,3 +131,7 @@ SETTINGS_MENU = {
     DELETE_DISH_MENU_LABEL: '_open_delete_dish_window',
     DELETE_TYPE_MENU_LABEL: '_open_delete_type_window'
 }
+
+# INTEGER CONSTANTS
+DISH_MAX_AMOUNT = 500
+MAX_AMOUNT = 999999

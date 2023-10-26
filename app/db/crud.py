@@ -98,7 +98,7 @@ class CRUD:
         session.commit()
 
     @staticmethod
-    def add_dish(session: Session, data: dict[str, int]):
+    def add_dish(session: Session, data: dict):
         type_name = data.get('name')
         count_per_one = data.get('count_per_one')
         dish_name = data.get('dish_name')
@@ -135,7 +135,7 @@ class CRUD:
         session.commit()
 
     @staticmethod
-    def update_dish(session: Session, data: dict[str, int]):
+    def update_dish(session: Session, data: dict):
         name = data.get('name')
         count_per_one = data.get('count_per_one')
 
@@ -174,7 +174,7 @@ class CRUD:
         session.commit()
 
     @staticmethod
-    def add_amount(session: Session, data: dict[str, int]):
+    def add_amount(session: Session, data: dict):
         name = data.get('name')
         amount = data.get('amount')
 
@@ -209,7 +209,7 @@ class CRUD:
         session.commit()
 
     @staticmethod
-    def add_report(session: Session, data: dict[str, int]):
+    def add_report(session: Session, data: dict):
         results = defaultdict(int)
 
         for name, amount in data.items():
@@ -259,7 +259,7 @@ class CRUD:
         return results
 
     @staticmethod
-    def freezer_to_fridge(session: Session, data: dict[str, int]):
+    def freezer_to_fridge(session: Session, data: dict):
         name = data.get('name')
         amount = data.get('amount')
 
@@ -289,7 +289,7 @@ class CRUD:
             session.commit()
 
     @staticmethod
-    def fridge_to_freezer(session: Session, data: dict[str, int]):
+    def fridge_to_freezer(session: Session, data: dict):
         name = data.get('name')
         amount = data.get('amount')
 
@@ -315,6 +315,36 @@ class CRUD:
         if raw_amount := session.query(RawAmount).filter_by(type=type).first():
             raw_amount.fridge -= int(amount)
             raw_amount.freezer += int(amount)
+
+            session.commit()
+
+    @staticmethod
+    def update_amount(session: Session, data: dict):
+        name = data.get('name')
+        amount = data.get('amount')
+        db_row_name = data.get('db_row_name')
+
+        if not name:
+
+            raise ValidationError('Поле названия '
+                                  'обязательно для заполнения!')
+
+        if not amount:
+
+            raise ValidationError('Поле количества '
+                                  'обязательно для заполнения!')
+
+        try:
+            float(amount)
+
+        except ValueError:
+
+            raise ValidationError('Это не число')
+
+        type = session.query(RawType).filter_by(name=name).first()
+
+        if raw_amount := session.query(RawAmount).filter_by(type=type).first():
+            setattr(raw_amount, db_row_name, amount)
 
             session.commit()
 

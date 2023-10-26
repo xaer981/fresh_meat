@@ -7,6 +7,7 @@ from tkinter.messagebox import showerror
 import constants
 from core.utils import (ScrollableFrame, create_frame,
                         generate_interface_center_x_y)
+from core.validators import is_num_lt_max
 from db.crud import crud
 from db.database import SessionLocal, create_db
 from db.exceptions import ValidationError
@@ -152,6 +153,11 @@ class Interface:
         columns = constants.LIST_COLUMNS['meat']
         self.fridge_tree = self._list_data(data, columns, self.fridge)
         self.fridge_tree.bind(
+            '<Double-1>',
+            lambda event: self._on_double_click(event,
+                                                self.fridge_tree,
+                                                'fridge'))
+        self.fridge_tree.bind(
             constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._meat_popup_menu(event, self.fridge_tree))
 
@@ -159,6 +165,11 @@ class Interface:
         data = crud.get_freezer(self.session)
         columns = constants.LIST_COLUMNS['meat']
         self.freezer_tree = self._list_data(data, columns, self.freezer)
+        self.freezer_tree.bind(
+            '<Double-1>',
+            lambda event: self._on_double_click(event,
+                                                self.freezer_tree,
+                                                'freezer'))
         self.freezer_tree.bind(
             constants.RIGHT_MOUSE_BUTTON,
             lambda event: self._meat_popup_menu(event, self.freezer_tree))
@@ -178,6 +189,69 @@ class Interface:
         self.total_tree.destroy()
 
         self._list_all()
+
+    def _on_double_click(self, event, tree, db_row_name):
+        region = tree.identify_region(event.x, event.y)
+        if region == 'cell' and tree.identify_column(event.x) == '#2':
+            column = tree.identify_column(event.x)
+            selected_iid = tree.focus()
+            selected_values = tree.item(selected_iid)
+
+            selected_text = selected_values.get('values')[:2]
+
+            column_box = tree.bbox(selected_iid, column)
+
+            entry_edit = ttk.Entry(tree,
+                                   width=column_box[2],
+                                   validate=constants.KEY,
+                                   validatecommand=(tree.register(
+                                       lambda val: is_num_lt_max(
+                                           val,
+                                           constants.MAX_AMOUNT)),
+                                       '%P'))
+
+            entry_edit.name = selected_text[0]
+            entry_edit.db_row_name = db_row_name
+
+            entry_edit.insert(0, selected_text[1])
+            entry_edit.select_range(0, END)
+
+            entry_edit.focus()
+
+            entry_edit.bind('<FocusOut>', self._on_focus_out)
+            entry_edit.bind('<Escape>', self._on_focus_out)
+            entry_edit.bind('<Return>', self._on_enter_pressed)
+
+            entry_edit.place(x=column_box[0],
+                             y=column_box[1],
+                             w=column_box[2],
+                             h=column_box[3])
+
+    def _on_focus_out(self, event):
+        event.widget.destroy()
+
+    def _on_enter_pressed(self, event):
+        amount = event.widget.get()
+        name = event.widget.name
+
+        try:
+            crud.update_amount(self.session,
+                               {'name': name,
+                                'amount': amount,
+                                'db_row_name': event.widget.db_row_name})
+
+            self.freezer_tree.destroy()
+            self.fridge_tree.destroy()
+            self.total_tree.destroy()
+            self._list_freezer()
+            self._list_fridge()
+            self._list_total()
+
+        except ValidationError as error:
+            showerror(constants.ERROR_TITLE, error.message)
+
+        finally:
+            event.widget.destroy()
 
     def _meat_popup_menu(self, event, tree: ttk.Treeview):
         row_id = tree.identify_row(event.y)
@@ -312,7 +386,10 @@ class Interface:
                                          validate=constants.KEY,
                                          validatecommand=(
                                              amount_frame.register(
-                                                 _is_num),
+                                                 lambda val: is_num_lt_max(
+                                                     val,
+                                                     constants.DISH_MAX_AMOUNT
+                                                 )),
                                              '%P'))
             amount_spinbox.pack(anchor=CENTER, fill=X)
             dish_name_entry = ttk.Entry(dish_name_frame)
@@ -333,20 +410,6 @@ class Interface:
             adding_window.bind('<Return>',
                                lambda event: send_data_and_update())
             add_dish_button.pack(anchor=CENTER)
-
-        def _is_num(val):
-            try:
-                val = int(val)
-
-            except ValueError:
-
-                return False
-
-            if val > 500:
-
-                return False
-
-            return True
 
         amount_frame = None
         dish_name_frame = None
@@ -473,20 +536,6 @@ class Interface:
             finally:
                 adding_window.destroy()
 
-        def _is_num(val):
-            try:
-                val = int(val)
-
-            except ValueError:
-
-                return False
-
-            if val > 999999:
-
-                return False
-
-            return True
-
         type_frame = create_frame(adding_window,
                                   constants.CHOOSE_ADD_TYPE_FRAME_TEXT)
         type_combobox = ttk.Combobox(type_frame,
@@ -505,7 +554,11 @@ class Interface:
                                      to=999999,
                                      validate=constants.KEY,
                                      validatecommand=(
-                                         amount_frame.register(_is_num), '%P'))
+                                         amount_frame.register(
+                                             lambda val: is_num_lt_max(
+                                                 val,
+                                                 constants.MAX_AMOUNT)),
+                                         '%P'))
         amount_spinbox.pack(anchor=CENTER, fill=X)
         amount_frame.pack(anchor=CENTER,
                           fill=X,
@@ -552,6 +605,10 @@ class Interface:
                 adding_window.destroy()
 
         def _is_num_and_less_than_now(val):
+            if not val:
+
+                return True
+
             try:
                 val = int(val)
 
@@ -656,6 +713,10 @@ class Interface:
                 adding_window.destroy()
 
         def _is_num_and_less_than_now(val):
+            if not val:
+
+                return True
+
             try:
                 val = int(val)
 
